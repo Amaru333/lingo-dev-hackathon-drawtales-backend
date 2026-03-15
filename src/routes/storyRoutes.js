@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateStory, listStories } from '../controllers/storyController.js';
+import { generateStory, listStories, getStory, synthesizeAudio } from '../controllers/storyController.js';
 
 const router = Router();
 
@@ -15,5 +15,18 @@ router.post('/generate-story', generateStory);
  * Returns all saved stories (most recent first).
  */
 router.get('/stories', listStories);
+
+/**
+ * GET /api/story/:id
+ * Returns a specific story by ID.
+ */
+router.get('/story/:id', getStory);
+
+/**
+ * POST /api/synthesize
+ * Body: { text: string, locale: string }
+ * Response: { audio: string }
+ */
+router.post('/synthesize', synthesizeAudio);
 
 export default router;

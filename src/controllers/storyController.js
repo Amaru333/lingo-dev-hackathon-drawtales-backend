@@ -1,5 +1,6 @@
 import { analyzeAndGenerateStory } from '../services/geminiService.js';
 import { saveStory } from '../services/dbService.js';
+import { synthesizeTextToAudio } from '../services/pollyService.js';
 import {
   localizeStory,
   extractLearningPhrase,
@@ -86,5 +87,56 @@ export async function listStories(req, res) {
   } catch (error) {
     console.error('[storyController] Error listing stories:', error.message);
     return res.status(500).json({ error: 'Failed to retrieve stories.' });
+  }
+}
+
+/**
+ * Controller: Get a specific story by ID.
+ *
+ * Expects params:
+ *   - id (string, required): The story ID
+ */
+export async function getStory(req, res) {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'Story ID is required.' });
+    }
+
+    const { getStoryById } = await import('../services/dbService.js');
+    const story = await getStoryById(id);
+
+    if (!story) {
+      return res.status(404).json({ error: 'Story not found.' });
+    }
+
+    return res.status(200).json(story);
+  } catch (error) {
+    console.error(`[storyController] Error fetching story ${req.params.id}:`, error.message);
+    return res.status(500).json({ error: 'Failed to retrieve story.' });
+  }
+}
+
+/**
+ * Controller: Synthesize text into audio using AWS Polly.
+ *
+ * Expects JSON body:
+ *   - text (string, required): The text to synthesize
+ *   - locale (string, required): The language locale ('en', 'es', 'fr', 'hi')
+ */
+export async function synthesizeAudio(req, res) {
+  try {
+    const { text, locale } = req.body;
+
+    if (!text || !locale) {
+      return res.status(400).json({ error: 'Both text and locale are required.' });
+    }
+
+    const audioDataUrl = await synthesizeTextToAudio(text, locale);
+    
+    return res.status(200).json({ audio: audioDataUrl });
+  } catch (error) {
+    console.error('[storyController] Error synthesizing audio:', error.message);
+    return res.status(500).json({ error: 'Failed to synthesize audio.' });
   }
 }

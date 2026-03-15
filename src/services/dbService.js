@@ -60,13 +60,12 @@ export async function initDatabase() {
 export async function saveStory(story, drawingImage = '', description = '') {
   const db = getPool();
 
-  // Strip base64 illustration data from pages to save space —
-  // illustrations are large and can be regenerated.
-  // We keep just the text & imagePrompt per page.
+  // We initially stripped base64 illustration data from pages to save space,
+  // but we need to keep them so they can be viewed when sharing the story link.
   const pagesForStorage = story.pages.map((p) => ({
     text: p.text,
     imagePrompt: p.imagePrompt,
-    hasIllustration: !!p.illustration,
+    illustration: p.illustration,
   }));
 
   const result = await db.query(
