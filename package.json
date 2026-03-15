@@ -1,0 +1,28 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Story generation backend for children's drawing app",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.1009.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1009.0",
+    "@google/genai": "^1.45.0",
+    "@google/generative-ai": "^0.24.1",
+    "@perplexity-ai/perplexity_ai": "^0.26.2",
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "lingo.dev": "^0.133.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
