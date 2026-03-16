@@ -31,32 +31,22 @@ export async function generateStory(req, res) {
     // ---- Generate the story ------------------------------------------------
     const result = await analyzeAndGenerateStory(image, description);
 
-    // ---- Localize into multiple languages -----------------------------------
+    // ---- Extract learning phrase for the default en version ---------
     let translations = {};
     let learningPhrase = {};
 
     try {
       const phrase = extractLearningPhrase(result);
-      console.log(`[storyController] Learning phrase: "${phrase}"`);
-
-      // Run story localization and phrase localization in parallel
-      const [storyTranslations, phraseTranslations] = await Promise.all([
-        localizeStory(result),
-        localizeLearningPhrase(phrase),
-      ]);
-
-      translations = storyTranslations;
-      learningPhrase = phraseTranslations;
-      console.log(`[storyController] Localized into ${Object.keys(translations).length} languages`);
+      console.log(`[storyController] Extracting learning phrase for en: "${phrase}"`);
+      learningPhrase['en'] = phrase;
     } catch (locErr) {
-      // Don't fail the whole request if localization fails
-      console.warn('[storyController] Localization failed:', locErr.message);
+      console.warn('[storyController] Failed to extract learning phrase:', locErr.message);
     }
 
     // ---- Save to database --------------------------------------------------
     let storyId = null;
     try {
-      const saved = await saveStory(result, image, description);
+      const saved = await saveStory(result, image, description, translations, learningPhrase);
       storyId = saved.id;
       console.log(`[storyController] Story saved with id=${storyId}`);
     } catch (dbErr) {
@@ -138,5 +128,79 @@ export async function synthesizeAudio(req, res) {
   } catch (error) {
     console.error('[storyController] Error synthesizing audio:', error.message);
     return res.status(500).json({ error: 'Failed to synthesize audio.' });
+  }
+}
+
+/**
+ * Controller: On-Demand translation for a given story.
+ *
+ * Expects params:
+ *   - id (string, required): The story ID
+ *
+ * Expects JSON body:
+ *   - targetLocale (string, required): The language locale
+ */
+export async function translateStory(req, res) {
+  try {
+    const { id } = req.params;
+    const { targetLocale } = req.body;
+
+    if (!id || !targetLocale) {
+      return res.status(400).json({ error: 'Story ID and targetLocale are required.' });
+    }
+
+    if (targetLocale === 'en') {
+      return res.status(400).json({ error: 'Source language is already English.' });
+    }
+
+    const { getStoryById, updateStoryTranslations } = await import('../services/dbService.js');
+    const story = await getStoryById(id);
+
+    if (!story) {
+      return res.status(404).json({ error: 'Story not found.' });
+    }
+
+    // Checking if translation already exists to save tokens
+    const translations = story.translations || {};
+    const learningPhraseMap = story.learning_phrase || {};
+
+    if (translations[targetLocale]) {
+      return res.status(200).json({
+        message: 'Translation already exists.',
+        translations: translations,
+        learningPhrase: learningPhraseMap
+      });
+    }
+
+    console.log(`[storyController] Localizing story ${id} into locale: ${targetLocale}`);
+    const [storyTranslationObj, phraseTranslationObj] = await Promise.all([
+      localizeStory({ title: story.title, pages: story.pages }, [targetLocale]),
+      // Pass the English learning phrase if we have it, else fallback
+      localizeLearningPhrase(learningPhraseMap['en'] || extractLearningPhrase({ pages: story.pages }), [targetLocale])
+    ]);
+
+    const targetStoryData = storyTranslationObj[targetLocale];
+    const targetPhraseStr = phraseTranslationObj[targetLocale];
+
+    if (!targetStoryData) {
+       return res.status(500).json({ error: 'Failed to translate story.'});
+    }
+
+    translations[targetLocale] = targetStoryData;
+    learningPhraseMap[targetLocale] = targetPhraseStr || '';
+
+    // Save back to db
+    await updateStoryTranslations(id, translations, learningPhraseMap);
+    
+    // Return the updated sets
+    return res.status(200).json({
+        message: 'Successfully translated story.',
+        translations: translations,
+        learningPhrase: learningPhraseMap
+    });
+
+  } catch (error) {
+    console.error(`[storyController] Error translating story ${req.params.id}:`, error.message);
+    return res.status(500).json({ error: 'Failed to translate story.' });
   }
 }

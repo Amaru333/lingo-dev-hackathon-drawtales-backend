@@ -124,51 +124,83 @@ function createBedrockClient() {
 }
 
 /**
- * Generate illustrations for each story page using Amazon Nova Canvas on Bedrock.
+ * Helper to pause execution.
+ */
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Generate illustrations for each story page using Amazon Nova Canvas on Bedrock
+ * with retry logic and exponential backoff.
  */
 async function generateIllustrations(pages) {
   const bedrockClient = createBedrockClient();
   const results = [];
+  const maxRetries = 3;
 
-  for (const page of pages) {
-    try {
-      const prompt = `Cute colorful children's book illustration, soft watercolor style: ${page.imagePrompt}. Whimsical, warm, no text in the image.`;
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i];
+    let illustration = null;
+    let attempt = 0;
 
-      const command = new InvokeModelCommand({
-        modelId: 'amazon.nova-canvas-v1:0',
-        contentType: 'application/json',
-        accept: 'application/json',
-        body: JSON.stringify({
-          taskType: 'TEXT_IMAGE',
-          textToImageParams: {
-            text: prompt,
-          },
-          imageGenerationConfig: {
-            numberOfImages: 1,
-            width: 1280,
-            height: 720,
-            quality: 'standard',
-          },
-        }),
-      });
+    let currentPrompt = `Cute colorful children's book illustration, soft watercolor style: ${page.imagePrompt}. Whimsical, warm, no text in the image.`;
 
-      const response = await bedrockClient.send(command);
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+    while (attempt < maxRetries && !illustration) {
+      try {
+        const command = new InvokeModelCommand({
+          modelId: 'amazon.nova-canvas-v1:0',
+          contentType: 'application/json',
+          accept: 'application/json',
+          body: JSON.stringify({
+            taskType: 'TEXT_IMAGE',
+            textToImageParams: { text: currentPrompt },
+            imageGenerationConfig: {
+              numberOfImages: 1,
+              width: 1280,
+              height: 720,
+              quality: 'standard',
+            },
+          }),
+        });
+        console.log(`[bedrockService] Generating image for page ${i + 1} (Attempt ${attempt + 1}/${maxRetries})...`);
+        const response = await bedrockClient.send(command);
+        const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-      let illustration = null;
-      if (responseBody.images?.[0]) {
-        illustration = `data:image/png;base64,${responseBody.images[0]}`;
+        if (responseBody.images?.[0]) {
+          illustration = `data:image/png;base64,${responseBody.images[0]}`;
+          console.log(`[bedrockService] Successfully generated image for page ${i + 1}`);
+        } else {
+          throw new Error('No image returned from Bedrock.');
+        }
+      } catch (err) {
+        attempt++;
+        console.warn(`[bedrockService] Attempt ${attempt} failed for page ${i + 1}: ${err.message}`);
+        
+        if (attempt >= maxRetries) {
+          console.error(`[bedrockService] Max retries reached for page ${i + 1}. Returning null illustration.`);
+          break;
+        }
+
+        if (err.message && err.message.toLowerCase().includes('content filters')) {
+          console.warn(`[bedrockService] Content filter triggered. Using a safe fallback prompt.`);
+          // If blocked, use a highly generic, safe prompt for the next retry
+          currentPrompt = `Cute colorful children's book illustration, soft watercolor style. Whimsical, warm, no text in the image. Magical glowing shapes, friendly animals, and a bright, happy landscape.`;
+        }
+
+        // Exponential backoff: 2000ms, then 4000ms
+        const delay = attempt * 2000;
+        console.log(`[bedrockService] Waiting ${delay}ms before next attempt...`);
+        await sleep(delay);
       }
+    }
 
-      results.push({ ...page, illustration });
+    results.push({ ...page, illustration });
 
-      // Small delay between calls
-      if (pages.indexOf(page) < pages.length - 1) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-    } catch (err) {
-      console.warn(`[bedrockService] Image generation failed for page: ${err.message}`);
-      results.push({ ...page, illustration: null });
+    // Enforce a higher base delay between valid calls to avoid hitting rate limits instantly
+    // Only wait if it's not the last page
+    if (i < pages.length - 1) {
+      await sleep(2000); 
     }
   }
 
@@ -190,7 +222,7 @@ A child has drawn a picture. Here's what the drawing shows: "${drawingDescriptio
 
 Create a 4-page children's storybook inspired by this drawing. The story MUST be about the characters and scene described above. Each page should have:
 - A short, engaging paragraph (2-3 sentences, age-appropriate for children ages 4-8)
-- A description of what the illustration for that page should show
+- A description of what the illustration for that page should show. CRITICAL: The imagePrompt MUST NOT mention human children, "child", "boy", "girl", or physical contact like "hugging" or "kissing" to avoid AI image filter blocks. Focus entirely on the fantasy characters, animals, and magical environment.
 
 The story should have a clear beginning, middle, and end with a positive message.
 

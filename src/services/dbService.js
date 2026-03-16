@@ -42,9 +42,19 @@ export async function initDatabase() {
       pages         JSONB DEFAULT '[]',
       drawing_image TEXT,
       description   TEXT DEFAULT '',
+      translations  JSONB DEFAULT '{}',
+      learning_phrase JSONB DEFAULT '{}',
       created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `);
+
+  // Migrate existing tables that might not have the new columns yet
+  try {
+    await db.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS translations JSONB DEFAULT '{}';`);
+    await db.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS learning_phrase JSONB DEFAULT '{}';`);
+  } catch (err) {
+    console.warn('Could not alter stories table for translations', err);
+  }
 
   console.log('📦 Database: stories table ready');
 }
@@ -55,9 +65,11 @@ export async function initDatabase() {
  * @param {object} story - The generated story data
  * @param {string} drawingImage - Base64 data-URL of the child's drawing
  * @param {string} description - Text description the child provided
+ * @param {object} translations - Localized story objects keyed by locale
+ * @param {object} learningPhrase - Localized learning phrase keyed by locale
  * @returns {Promise<object>} The saved story row with its id
  */
-export async function saveStory(story, drawingImage = '', description = '') {
+export async function saveStory(story, drawingImage = '', description = '', translations = {}, learningPhrase = {}) {
   const db = getPool();
 
   // We initially stripped base64 illustration data from pages to save space,
@@ -69,8 +81,8 @@ export async function saveStory(story, drawingImage = '', description = '') {
   }));
 
   const result = await db.query(
-    `INSERT INTO stories (title, characters, objects, pages, drawing_image, description)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO stories (title, characters, objects, pages, drawing_image, description, translations, learning_phrase)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, title, created_at`,
     [
       story.title,
@@ -79,6 +91,8 @@ export async function saveStory(story, drawingImage = '', description = '') {
       JSON.stringify(pagesForStorage),
       drawingImage,
       description,
+      JSON.stringify(translations),
+      JSON.stringify(learningPhrase),
     ]
   );
 
@@ -91,7 +105,7 @@ export async function saveStory(story, drawingImage = '', description = '') {
 export async function getStories(limit = 20) {
   const db = getPool();
   const result = await db.query(
-    `SELECT id, title, characters, objects, pages, description, created_at
+    `SELECT id, title, characters, objects, pages, description, translations, learning_phrase, created_at
      FROM stories
      ORDER BY created_at DESC
      LIMIT $1`,
@@ -110,4 +124,24 @@ export async function getStoryById(id) {
     [id]
   );
   return result.rows[0] || null;
+}
+
+/**
+ * Update the translations and learning phrase map of an existing story.
+ */
+export async function updateStoryTranslations(id, newTranslations, newLearningPhrase) {
+  const db = getPool();
+  
+  const result = await db.query(
+    `UPDATE stories 
+     SET translations = $1, learning_phrase = $2
+     WHERE id = $3
+     RETURNING id`,
+    [
+      JSON.stringify(newTranslations),
+      JSON.stringify(newLearningPhrase),
+      id
+    ]
+  );
+  return result.rows[0];
 }

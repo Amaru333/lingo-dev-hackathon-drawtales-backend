@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateStory, listStories, getStory, synthesizeAudio } from '../controllers/storyController.js';
+import { generateStory, listStories, getStory, synthesizeAudio, translateStory } from '../controllers/storyController.js';
 
 const router = Router();
 
@@ -28,5 +28,6 @@ router.get('/story/:id', getStory);
  * Response: { audio: string }
  */
 router.post('/synthesize', synthesizeAudio);
+router.post('/story/:id/translate', translateStory);
 
 export default router;

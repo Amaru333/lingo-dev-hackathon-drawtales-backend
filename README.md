@@ -1,6 +1,6 @@
-# 🖍️ Storybook Creator - Backend
+# 🖍️ DrawTales - Backend
 
-Welcome to the backend engine of **Storybook Creator**, built for the **Lingo.dev Hackathon**. 
+Welcome to the backend engine of **DrawTales**, built for the **Lingo.dev Hackathon**. 
 
 This Node.js/Express service orchestrates an advanced AI pipeline to turn a child's raw drawing into a localized, multi-page storybook.
 
