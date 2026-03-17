@@ -1,4 +1,34 @@
-# DrawTales — Backend
+<p align="center">
+  <h1 align="center">DrawTales — Backend</h1>
+  <p align="center">AI orchestration engine — turns a child's drawing into a localized, illustrated storybook using five services in a single request</p>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-Express-339933?style=flat&logo=node.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat&logo=postgresql&logoColor=white" />
+  <img src="https://img.shields.io/badge/Google-Gemini%202.5%20Flash-4285F4?style=flat&logo=google&logoColor=white" />
+  <img src="https://img.shields.io/badge/AWS-Nova%20Canvas%20%2B%20Polly-FF9900?style=flat&logo=amazonaws&logoColor=white" />
+  <img src="https://img.shields.io/badge/Lingo.dev-Localization-7C3AED?style=flat" />
+</p>
+
+---
+
+<p align="center">
+  <a href="https://github.com/Amaru333/lingo-dev-hackathon-drawtales-frontend">
+    <img src="https://img.shields.io/badge/Frontend-React%2019-61DAFB?style=flat&logo=react" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/Amaru333/lingo-dev-hackathon-drawtales-backend">
+    <img src="https://img.shields.io/badge/Backend-Node.js%20%2F%20Express-339933?style=flat&logo=node.js" />
+  </a>
+</p>
+
+| Repository   | Link |
+|---|---|
+| **Frontend** | [github.com/Amaru333/lingo-dev-hackathon-drawtales-frontend](https://github.com/Amaru333/lingo-dev-hackathon-drawtales-frontend) |
+| **Backend**  | [github.com/Amaru333/lingo-dev-hackathon-drawtales-backend](https://github.com/Amaru333/lingo-dev-hackathon-drawtales-backend) |
+
+---
 
 > The AI orchestration engine behind DrawTales. Turns a child's drawing into a localized, illustrated storybook using five services in a single request.
 
