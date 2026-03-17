@@ -12,6 +12,27 @@ const VOICE_MAP_CACHE = {
 };
 
 /**
+ * Normalize app locales (often BCP-47 like `hi-IN`, `ar-SA`) into a stable
+ * Polly lookup key. We prefer base language tags because Polly voice IDs are
+ * enough to synthesize, and it avoids dialect mismatches.
+ */
+function normalizeLocaleForPolly(locale) {
+  if (!locale || typeof locale !== 'string') return '';
+  const trimmed = locale.trim();
+  if (!trimmed) return '';
+
+  const lower = trimmed.toLowerCase();
+
+  // Special case: if app sends `zh-*`, Polly's language codes are typically `cmn-*`.
+  // Keep region/script when provided (e.g. zh-CN -> cmn-cn) for best matching.
+  if (lower === 'zh' || lower.startsWith('zh-')) {
+    return `cmn${lower.slice(2)}`;
+  }
+
+  return lower;
+}
+
+/**
  * Initialize the AWS Polly client
  */
 function getPollyClient() {
@@ -44,9 +65,17 @@ async function streamToBuffer(stream) {
  * Find the best AWS Polly voice for a given locale (e.g. 'kn', 'es-US', 'fr')
  */
 async function getVoiceForLocale(client, locale) {
+  const normalizedLocale = normalizeLocaleForPolly(locale);
+  if (!normalizedLocale) return null;
+
   // 1. Check our hardcoded cache first for speed on common languages
-  if (VOICE_MAP_CACHE[locale]) {
-    return VOICE_MAP_CACHE[locale];
+  if (VOICE_MAP_CACHE[normalizedLocale]) {
+    return VOICE_MAP_CACHE[normalizedLocale];
+  }
+  // Also try base-language cache (e.g. `hi-IN` -> `hi`) so we don't fail on dialect tags.
+  const normalizedBaseLocale = normalizedLocale.split('-')[0];
+  if (normalizedBaseLocale && VOICE_MAP_CACHE[normalizedBaseLocale]) {
+    return VOICE_MAP_CACHE[normalizedBaseLocale];
   }
 
   try {
@@ -54,8 +83,8 @@ async function getVoiceForLocale(client, locale) {
     const command = new DescribeVoicesCommand({});
     const response = await client.send(command);
     
-    const targetLocale = locale.toLowerCase();
-    const baseLocale = targetLocale.split('-')[0];
+    const targetLocale = normalizedLocale;
+    const baseLocale = normalizedBaseLocale;
 
     // Try finding an exact or dialect match first (e.g. 'es-MX' matches 'es-MX')
     let matchingVoice = response.Voices.find(voice => 
@@ -74,7 +103,7 @@ async function getVoiceForLocale(client, locale) {
       // Cache it for next time
       const engine = matchingVoice.SupportedEngines.includes('neural') ? 'neural' : 'standard';
       const voiceConfig = { voiceId: matchingVoice.Id, engine };
-      VOICE_MAP_CACHE[locale] = voiceConfig;
+      VOICE_MAP_CACHE[normalizedLocale] = voiceConfig;
       return voiceConfig;
     }
     
@@ -98,10 +127,13 @@ export async function synthesizeTextToAudio(text, locale) {
   }
 
   const client = getPollyClient();
-  const voiceConfig = await getVoiceForLocale(client, locale);
+  const normalizedLocale = normalizeLocaleForPolly(locale);
+  const voiceConfig = await getVoiceForLocale(client, normalizedLocale);
 
   if (!voiceConfig) {
-    throw new Error(`AWS Polly does not support voice synthesis for the language code: ${locale}`);
+    throw new Error(
+      `AWS Polly does not support voice synthesis for the language code: ${locale} (normalized: ${normalizedLocale})`
+    );
   }
 
   try {
